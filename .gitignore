@@ -1,0 +1,19 @@
+# Local environment and build output
+.venv/
+build/
+dist/
+release/
+__pycache__/
+*.spec
+assets/icon.ico
+platform-tools/
+
+# Personal settings, keys and logs - never commit
+config.json
+*.tmp
+*.log
+
+# Your own Cloudflare relay settings (copy wrangler.toml.example)
+relay/wrangler.toml
+relay/.wrangler/
+node_modules/

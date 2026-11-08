@@ -1,0 +1,14 @@
+# Exact versions the app was built and tested with (update deliberately, then re-test).
+mcp==2.3.0
+mss==10.2.0
+PyAutoGUI==0.9.54
+pillow==12.3.0
+pyperclip==1.11.0
+PyGetWindow==0.0.9
+keyboard==0.13.5
+google-genai==2.33.0
+qrcode==8.2
+pywebview==6.2.1
+pystray==0.19.5
+anthropic==2.3.0
+openai==3.42.0

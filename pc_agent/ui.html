@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>PC Agent</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1f232c; --line: #2a2f3a;
+    --text: #e8eaf0; --muted: #8b93a5; --accent: #6c8cff; --accent2: #4f6ef0;
+    --ok: #3ecf8e; --warn: #f5b041; --bad: #ff5d5d;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column;
+  }
+  svg.i { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2;
+          stroke-linecap: round; stroke-linejoin: round; display: block; }
+  header {
+    display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+    border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.idle { background: var(--ok); } .dot.busy { background: var(--accent); animation: pulse 1s infinite; }
+  .dot.paused { background: var(--warn); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  #statusText { color: var(--muted); font-size: 13px; }
+  header .spacer { flex: 1; }
+  button {
+    font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent2); border-color: var(--accent2); }
+  button.danger { background: var(--bad); border-color: var(--bad); font-weight: 650; }
+  button.icon { padding: 8px; }
+  button.small { padding: 4px 8px; font-size: 13px; }
+  button.big { padding: 12px 18px; font-size: 16px; font-weight: 600; width: 100%; }
+
+  main { flex: 1; display: grid; grid-template-columns: 1.6fr 1fr; min-height: 0; }
+  #viewWrap { position: relative; background: #000; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  #view { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+  #chat { display: flex; flex-direction: column; border-left: 1px solid var(--line); min-height: 0; background: var(--panel); }
+  #log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { max-width: 92%; padding: 9px 12px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
+  .user { align-self: flex-end; background: var(--accent2); border-bottom-right-radius: 4px; }
+  .ai { align-self: flex-start; background: var(--panel2); border-bottom-left-radius: 4px; }
+  .status { align-self: center; color: var(--muted); font-size: 13px; padding: 2px 8px; text-align: center; }
+  .error { align-self: stretch; color: var(--bad); background: rgba(255,93,93,.08); border: 1px solid rgba(255,93,93,.3); }
+  #working { align-self: flex-start; color: var(--muted); font-size: 13px; padding: 2px 4px; }
+  .empty { color: var(--muted); text-align: center; margin: auto; max-width: 300px; }
+  .empty b { color: var(--text); display: block; margin-bottom: 4px; font-size: 17px; }
+
+  form#form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
+  textarea {
+    flex: 1; resize: none; font: inherit; color: var(--text); background: var(--panel2);
+    border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; max-height: 140px;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  #stopBtn { display: none; }
+  body.busy #stopBtn { display: block; } body.busy #sendBtn { display: none; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { border: none; border-radius: 0; background: none; color: var(--muted); padding: 7px 12px; }
+  .seg button.on { background: var(--accent2); color: #fff; }
+
+  /* First-run screen */
+  #wizard { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: flex;
+            align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
+  .card { width: min(440px, 100%); }
+  .card h2 { font-size: 26px; margin: 0 0 8px; }
+  .card p { color: var(--muted); margin: 0 0 18px; }
+  .card .step { display: flex; gap: 12px; margin-bottom: 14px; }
+  .card .num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--panel2);
+               display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
+  .waiting { color: var(--accent); font-size: 14px; margin: 14px 0; }
+  .privacy { font-size: 12.5px !important; color: var(--muted); margin-top: 16px !important; }
+
+  /* Settings */
+  dialog {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 16px;
+    width: min(520px, calc(100vw - 24px)); max-height: calc(100vh - 32px); padding: 0;
+  }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  .dlg { display: flex; flex-direction: column; max-height: calc(100vh - 32px); }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px;
+              border-bottom: 1px solid var(--line); }
+  .dlg-head h2 { margin: 0; font-size: 18px; }
+  .dlg-body { padding: 4px 20px 20px; overflow-y: auto; }
+  section { padding: 14px 0; border-bottom: 1px solid var(--line); }
+  section h3 { margin: 0 0 6px; font-size: 15px; }
+  dialog p, dialog li { color: var(--muted); font-size: 13.5px; }
+  dialog p { margin: 6px 0; }
+  dialog ol { padding-left: 20px; margin: 6px 0; }
+  dialog a { color: var(--accent); }
+  dialog input[type=text], dialog input[type=password], dialog select, #wizard input[type=password] {
+    width: 100%; font: inherit; color: var(--text); background: var(--panel2);
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px;
+  }
+  .formrow { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .formrow input { flex: 1; min-width: 0; }
+  .check { display: flex; align-items: center; gap: 10px; font-size: 14px; margin: 8px 0; color: var(--text); }
+  .ok { color: var(--ok); }
+  .note { font-size: 13px; color: var(--warn); }
+  .note.good { color: var(--ok); }
+  .qr { background: #fff; border-radius: 12px; padding: 10px; width: 190px; margin: 10px auto; }
+  .qr img { width: 100%; display: block; }
+  details { padding: 14px 0 0; }
+  summary { cursor: pointer; font-weight: 600; font-size: 15px; }
+  details h4 { margin: 16px 0 4px; font-size: 14px; }
+  .provider { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-top: 8px; }
+  .provider .top { display: flex; align-items: center; gap: 8px; }
+  .provider .name { flex: 1; font-size: 14px; }
+
+  /* Phone: live view on top, chat below */
+  @media (max-width: 800px) {
+    main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    #viewWrap { max-height: 38vh; }
+    #chat { border-left: 0; border-top: 1px solid var(--line); }
+    header { padding: 8px 12px; } #statusText { display: none; }
+  }
+  #viewWrap.full { position: fixed; inset: 0; z-index: 10; max-height: none; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-new" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+</svg>
+
+<header>
+  <span class="dot" id="dot"></span>
+  <h1>PC Agent</h1>
+  <span id="statusText"></span>
+  <span class="spacer"></span>
+  <div class="seg" id="targetSeg" hidden>
+    <button type="button" data-target="pc">PC</button>
+    <button type="button" data-target="phone">Phone</button>
+  </div>
+  <button class="icon" id="resetBtn" title="New chat"><svg class="i"><use href="#i-new"/></svg></button>
+  <button class="icon" id="settingsBtn" title="Settings"><svg class="i"><use href="#i-gear"/></svg></button>
+</header>
+
+<main>
+  <div id="viewWrap" title="Click to enlarge"><img id="view" alt="Screen"></div>
+  <section id="chat" style="padding:0;border-bottom:0">
+    <div id="log"></div>
+    <form id="form">
+      <textarea id="input" rows="1" placeholder="What should I do?"></textarea>
+      <button class="primary" id="sendBtn" type="submit">Send</button>
+      <button class="danger" id="stopBtn" type="button">STOP</button>
+    </form>
+  </section>
+</main>
+
+<div id="wizard" hidden>
+  <div class="card" id="wzWelcome" hidden>
+    <h2>Welcome to PC Agent</h2>
+    <p>Tell it what to do. It uses your computer for you, and you watch it happen.</p>
+    <label class="check"><input type="checkbox" id="wzAutostart" checked> Start when my computer starts</label>
+    <button class="primary big" id="wzStart" type="button">Get started</button>
+    <p class="note" id="wzStartMsg" style="margin-top:12px"></p>
+  </div>
+
+  <div class="card" id="wzKey" hidden>
+    <h2>Connect a free AI</h2>
+    <p>This takes one minute, and you only do it once.</p>
+    <div class="step"><span class="num">1</span><div>Open Google and press <b>Create API key</b>.</div></div>
+    <button class="primary big" id="wzOpen" type="button">Open Google</button>
+    <div class="step" style="margin-top:18px"><span class="num">2</span><div>Press <b>Copy</b> next to your key. PC Agent finds it by itself.</div></div>
+    <p class="waiting" id="wzWaiting">Waiting for your key…</p>
+    <p class="privacy">While the AI works, pictures of your screen are sent to the AI service. Free AI
+       services may use them to improve their products (Google does not in the EU, UK and Switzerland).
+       Close private things like banking or passwords before giving the AI a task.</p>
+    <details>
+      <summary style="font-weight:400;font-size:13px;color:var(--muted)">Paste it here instead</summary>
+      <div class="formrow">
+        <input type="password" id="wzPaste" autocomplete="off" placeholder="Your key">
+        <button type="button" id="wzPasteBtn">Connect</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="card" id="wzPhoneWait" hidden>
+    <h2>Almost there</h2>
+    <p>Finish setting up PC Agent on your computer, then open this page again.</p>
+  </div>
+</div>
+
+<dialog id="settings">
+  <div class="dlg">
+    <div class="dlg-head">
+      <h2>Settings</h2>
+      <button class="icon" type="button" data-close title="Close"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="dlg-body">
+      <section>
+        <h3>Use on your phone</h3>
+        <div id="lanBox">
+          <p>Point your phone's camera at this code. Your phone must be on the same Wi-Fi.</p>
+          <div class="qr"><img id="qrLan" alt="QR code"></div>
+        </div>
+        <label class="check"><input type="checkbox" class="remoteToggle"> Also work away from home</label>
+        <p class="note remoteState"></p>
+        <div id="remoteBox" hidden>
+          <p>Scan this code to use PC Agent anywhere. <span id="remoteChanges">It changes when PC Agent restarts.</span></p>
+          <div class="qr"><img id="qrRemote" alt="QR code for use away from home"></div>
+        </div>
+      </section>
+
+      <section>
+        <h3>Let the AI use your Android phone</h3>
+        <div id="phoneOn" hidden>
+          <p class="ok" id="phoneName"></p>
+          <button type="button" id="discBtn">Disconnect</button>
+        </div>
+        <div id="phoneOff">
+          <button type="button" id="phoneStart">Connect my phone</button>
+          <div id="phoneStep1" hidden>
+            <p><b>Step 1 of 3.</b> On your phone, open Settings, search for <b>build number</b> and tap it 7 times.</p>
+            <p>On Xiaomi phones, search for <b>OS version</b>. If it says you are already a developer, just continue.</p>
+            <div class="formrow"><button type="button" class="primary" id="phoneNext1">Next</button></div>
+          </div>
+          <div id="phoneStep2" hidden>
+            <p><b>Step 2 of 3.</b> In Settings, search for <b>wireless debugging</b>, open it and turn it on.</p>
+            <div class="formrow"><button type="button" class="primary" id="phoneNext2">Next</button></div>
+          </div>
+          <div id="phoneStep3" hidden>
+            <p id="phoneStep3Text"><b>Step 3 of 3.</b> Tap <b>Pair device with QR code</b> on your phone and scan this:</p>
+            <div class="qr"><img id="qrPhone" alt="QR code for pairing"></div>
+            <p class="note" id="phoneMsg"></p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h3>AI</h3>
+        <p id="aiList"></p>
+        <p class="privacy">Pictures of your screen go to these AI services while the AI works. Free
+           services may use them to improve their products – keep private things closed during tasks.</p>
+        <p>Want more free uses per day? Add another free AI.</p>
+        <div class="formrow">
+          <button type="button" class="addAi" data-type="openrouter">Get OpenRouter key</button>
+          <button type="button" class="addAi" data-type="groq">Get Groq key</button>
+        </div>
+        <div class="formrow">
+          <input type="password" id="keyPaste" autocomplete="off" placeholder="Paste any AI key">
+          <button type="button" id="keyAdd">Add</button>
+        </div>
+        <p class="note" id="keyMsg"></p>
+        <p>Have a strong graphics card? Run AI on this PC with LM Studio or Ollama – free, no limits, offline.</p>
+        <div class="formrow"><button type="button" id="localFind">Find local AI</button></div>
+        <p class="note" id="localMsg"></p>
+      </section>
+
+      <details>
+        <summary>Advanced</summary>
+        <label class="check"><input type="checkbox" id="autostartCheck"> Start when my computer starts</label>
+        <button type="button" id="installBtn" hidden>Install PC Agent</button>
+        <p class="note" id="installMsg"></p>
+
+        <h4>Speed</h4>
+        <select id="modeSelect">
+          <option value="fast">Fast</option>
+          <option value="smart">Smart (slower, small daily limit)</option>
+        </select>
+
+        <h4>Order of AIs</h4>
+        <div id="providers"></div>
+
+        <h4>Use from another AI app (MCP)</h4>
+        <p>Type tasks in Claude or Gemini instead, on your computer or phone. Turn on "Also work away from home",
+           then add this address as a custom connector in that app. Never share it.</p>
+        <div class="formrow">
+          <input type="text" id="mcpUrl" readonly placeholder="Turn on &quot;Also work away from home&quot; first">
+          <button type="button" id="copyMcp">Copy</button>
+        </div>
+
+        <h4>Connect a phone with a code</h4>
+        <p>Use this if the QR code does not work: "Pair device with pairing code" on the phone.</p>
+        <div class="formrow">
+          <input type="text" id="pairAddr" placeholder="IP address and port">
+          <input type="text" id="pairCode" placeholder="Code" style="max-width:90px">
+          <button type="button" id="pairBtn">Pair</button>
+        </div>
+        <div class="formrow">
+          <input type="text" id="connAddr" placeholder="Address on the Wireless debugging screen">
+          <button type="button" id="connBtn">Connect</button>
+        </div>
+        <p class="note" id="manualMsg"></p>
+
+        <h4>Phone password</h4>
+        <p>When the phone's screen is off, the AI turns it on. To unlock it, the AI types only the PIN or
+          password you save here, nothing else. It is stored encrypted on this PC and the AI never sees it.
+          A pattern lock cannot be used.</p>
+        <div class="formrow">
+          <input type="password" id="pinInput" autocomplete="off" placeholder="Phone PIN or password">
+          <button type="button" id="pinSave">Save</button>
+          <button type="button" id="pinClear">Remove</button>
+        </div>
+        <p class="note" id="pinMsg"></p>
+      </details>
+    </div>
+  </div>
+</dialog>
+
+<script>
+const base = location.pathname.replace(/\/$/, "");
+const $ = (id) => document.getElementById(id);
+const api = (path, body) => fetch(base + path, body === undefined ? {} : {
+  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+}).then((r) => r.json());
+const icon = (name) => `<svg class="i"><use href="#i-${name}"/></svg>`;
+const onThisPC = ["127.0.0.1", "localhost"].includes(location.hostname);
+
+// ---- live view: the next frame loads only after the previous one is shown ----
+const view = $("view");
+function nextFrame() {
+  // Nobody is looking (window hidden or minimised): ask for no pictures, so the PC stops capturing.
+  if (document.hidden) { view.removeAttribute("src"); setTimeout(nextFrame, 1000); return; }
+  const img = new Image();
+  img.onload = () => { view.src = img.src; setTimeout(nextFrame, 200); };
+  img.onerror = () => setTimeout(nextFrame, 1500);
+  img.src = base + "/frame.jpg?t=" + Date.now();
+}
+nextFrame();
+$("viewWrap").onclick = () => $("viewWrap").classList.toggle("full");
+
+// ---- chat: people see the conversation; technical steps stay out of it ----
+const log = $("log");
+let since = 0;
+const HIDDEN_STATUS = /^(Using |Done in |.* is unavailable, trying )/;
+function showEmpty() {
+  log.innerHTML = '<div class="empty"><b>What should I do?</b>Try "Open YouTube and play relaxing music".</div>';
+}
+function addEvent(ev) {
+  if (ev.type === "done" || ev.type === "action") return;
+  if (ev.type === "status" && HIDDEN_STATUS.test(ev.text)) return;
+  log.querySelector(".empty")?.remove();
+  const el = document.createElement("div");
+  el.className = "msg " + ev.type;
+  el.textContent = ev.text;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+}
+async function poll() {
+  try {
+    const s = await api("/api/state?since=" + since);
+    s.events.forEach(addEvent);
+    since += s.events.length;
+    if (since === 0 && !log.children.length) showEmpty();
+    document.body.classList.toggle("busy", s.running);
+    $("dot").className = "dot " + (s.paused ? "paused" : s.running ? "busy" : "idle");
+    $("statusText").textContent = s.paused ? "Paused" : s.running ? "Working…" : "";
+    $("targetSeg").hidden = s.phone.status !== "connected";
+    document.querySelectorAll("#targetSeg button").forEach((b) => b.classList.toggle("on", b.dataset.target === s.target));
+    if ($("settings").open) renderPhone(s.phone);
+  } catch {
+    $("dot").className = "dot"; $("statusText").textContent = "Your PC is not reachable";
+  }
+  setTimeout(poll, document.body.classList.contains("busy") ? 300 : 700);
+}
+
+const input = $("input");
+input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = input.scrollHeight + "px"; });
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("form").requestSubmit(); }
+});
+$("form").onsubmit = async (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+  const r = await api("/api/send", { text });
+  if (r.ok) { input.value = ""; input.style.height = "auto"; }
+  else addEvent({ type: "error", text: r.error });
+};
+$("stopBtn").onclick = () => api("/api/stop", {});
+$("resetBtn").onclick = async () => {
+  const r = await api("/api/reset", {});
+  if (r.ok) { since = 0; log.innerHTML = ""; } else addEvent({ type: "error", text: r.error });
+};
+document.querySelectorAll("#targetSeg button").forEach((b) => b.onclick = async () => {
+  const r = await api("/api/target", { target: b.dataset.target });
+  if (!r.ok) addEvent({ type: "error", text: r.error });
+});
+
+// ---- first run ----
+let clipboardTimer = null;
+function watchClipboard(onFound) {
+  clearInterval(clipboardTimer);
+  if (!onThisPC) return;
+  clipboardTimer = setInterval(async () => {
+    const r = await api("/api/clipboard-key");
+    if (r.found) { clearInterval(clipboardTimer); onFound(r.name); }
+    else if (r.error) $("wzWaiting").textContent = r.error;
+  }, 1500);
+}
+function wizardStep(name) {
+  ["wzWelcome", "wzKey", "wzPhoneWait"].forEach((id) => $(id).hidden = id !== name);
+  $("wizard").hidden = !name;
+}
+function finishWizard() {
+  clearInterval(clipboardTimer);
+  wizardStep(null);
+}
+function showKeyStep() {
+  wizardStep("wzKey");
+  watchClipboard(finishWizard);
+}
+$("wzStart").onclick = async () => {
+  $("wzStart").disabled = true;
+  $("wzStartMsg").textContent = "Setting up…";
+  const r = await api("/api/get-started", { autostart: $("wzAutostart").checked });
+  if (!r.ok) { $("wzStart").disabled = false; $("wzStartMsg").textContent = r.error; return; }
+  // A fresh install restarts the app, which opens on the next step by itself.
+  if (!r.path) showKeyStep();
+};
+$("wzOpen").onclick = () => api("/api/open-key-page", { type: "gemini" });
+$("wzPasteBtn").onclick = async () => {
+  const r = await api("/api/key", { key: $("wzPaste").value });
+  if (r.ok) finishWizard(); else $("wzWaiting").textContent = r.error;
+};
+
+// ---- settings ----
+let providers = [];
+document.querySelectorAll("[data-close]").forEach((b) => b.onclick = () => $("settings").close());
+$("settings").addEventListener("close", () => clearInterval(clipboardTimer));
+
+async function loadSettings() {
+  const s = await api("/api/settings");
+  providers = s.providers.map((p) => ({ ...p }));
+  renderProviders();
+  $("aiList").textContent = "Connected: " + (providers.filter((p) => p.has_key).map((p) => p.name).join(", ") || "none");
+  $("modeSelect").value = s.mode;
+  $("autostartCheck").checked = s.autostart;
+  $("installBtn").hidden = !s.can_install;
+  renderLinks(s);
+  renderPhone(s.phone);
+  return s;
+}
+const saveSettings = () => api("/api/settings", {
+  providers: providers.map((p) => ({ type: p.type, model: p.model, enabled: p.enabled, clear_key: p.clear_key })),
+  mode: $("modeSelect").value,
+  autostart: $("autostartCheck").checked,
+});
+$("modeSelect").onchange = saveSettings;
+$("autostartCheck").onchange = saveSettings;
+
+function renderProviders() {
+  const box = $("providers");
+  box.innerHTML = "";
+  const connected = providers.filter((p) => p.has_key);
+  connected.forEach((p, n) => {
+    const i = providers.indexOf(p);
+    const el = document.createElement("div");
+    el.className = "provider";
+    el.innerHTML = `
+      <div class="top">
+        <input type="checkbox" ${p.enabled ? "checked" : ""} title="Use this AI">
+        <span class="name"></span>
+        <button type="button" class="icon small" data-move="-1" title="Earlier">${icon("up")}</button>
+        <button type="button" class="icon small" data-move="1" title="Later">${icon("down")}</button>
+        <button type="button" class="small" data-remove>Remove</button>
+      </div>
+      <div class="formrow"><input type="text" placeholder="Model: automatic"></div>`;
+    el.querySelector(".name").textContent = p.name;
+    const [check, model] = el.querySelectorAll("input");
+    model.value = p.model || "";
+    check.onchange = () => { p.enabled = check.checked; saveSettings(); };
+    model.onchange = () => { p.model = model.value; saveSettings(); };
+    el.querySelectorAll("[data-move]").forEach((b) => b.onclick = () => {
+      const other = connected[n + Number(b.dataset.move)];  // AIs without a key are not shown
+      if (!other) return;
+      const j = providers.indexOf(other);
+      [providers[i], providers[j]] = [providers[j], providers[i]];
+      saveSettings(); renderProviders();
+    });
+    el.querySelector("[data-remove]").onclick = async () => {
+      p.clear_key = true;
+      await saveSettings();
+      await loadSettings();
+    };
+    box.appendChild(el);
+  });
+}
+
+// One field for any AI; the app recognises which one the key belongs to.
+async function keyAdded(name) {
+  $("keyPaste").value = "";
+  $("keyMsg").textContent = name + " connected.";
+  $("keyMsg").classList.add("good");
+  await loadSettings();
+}
+document.querySelectorAll(".addAi").forEach((b) => b.onclick = () => {
+  api("/api/open-key-page", { type: b.dataset.type }).then((r) => { if (!onThisPC && r.url) window.open(r.url); });
+  $("keyMsg").classList.remove("good");
+  $("keyMsg").textContent = onThisPC ? "Copy the key on that page. PC Agent finds it by itself." : "Paste the key below.";
+  watchClipboard(keyAdded);
+});
+$("localFind").onclick = async () => {
+  $("localMsg").classList.remove("good");
+  $("localMsg").textContent = "Looking for LM Studio or Ollama…";
+  const r = await api("/api/local-ai", {});
+  $("localMsg").textContent = r.ok ? `Connected: ${r.name}. It is used after your other AIs.` : r.error;
+  $("localMsg").classList.toggle("good", r.ok);
+  if (r.ok) await loadSettings();
+};
+$("keyAdd").onclick = async () => {
+  const r = await api("/api/key", { key: $("keyPaste").value });
+  if (r.ok) keyAdded(r.name);
+  else { $("keyMsg").classList.remove("good"); $("keyMsg").textContent = r.error; }
+};
+
+// Phone QR codes and remote access
+function renderLinks(s) {
+  const text = { downloading: "Preparing, this takes a minute…", starting: "Starting…", on: "On.", error: s.remote_error }[s.remote_status] || "";
+  document.querySelectorAll(".remoteState").forEach((el) => {
+    el.textContent = text;
+    el.classList.toggle("good", s.remote_status === "on");
+  });
+  document.querySelectorAll(".remoteToggle").forEach((el) => el.checked = s.remote_status !== "off");
+  $("mcpUrl").value = s.mcp || "";
+  $("remoteBox").hidden = !s.remote;
+  $("remoteChanges").hidden = !!s.stable;
+  if (s.remote) $("qrRemote").src = base + "/qr.svg?for=remote&t=" + encodeURIComponent(s.remote);
+  $("lanBox").hidden = !s.lan;
+  if (s.lan) $("qrLan").src = base + "/qr.svg?for=lan";
+}
+let linkTimer = null;
+async function refreshLinks() {
+  const s = await api("/api/links");
+  renderLinks(s);
+  clearTimeout(linkTimer);
+  if (["downloading", "starting"].includes(s.remote_status) && $("settings").open) linkTimer = setTimeout(refreshLinks, 1500);
+}
+document.querySelectorAll(".remoteToggle").forEach((el) => el.onchange = async () => {
+  renderLinks(await api("/api/remote", { enabled: el.checked }));
+  refreshLinks();
+});
+$("copyMcp").onclick = async () => {
+  const field = $("mcpUrl");
+  if (!field.value) return;
+  try { await navigator.clipboard.writeText(field.value); } catch { field.select(); document.execCommand("copy"); }
+};
+
+// Android phone
+function renderPhone(p) {
+  const connected = p.status === "connected";
+  $("phoneOn").hidden = !connected;
+  $("phoneOff").hidden = connected;
+  if (connected) phoneStep(0);
+  $("phoneName").textContent = connected ? "Connected: " + p.model : "";
+  if (p.address && !$("connAddr").value) $("connAddr").value = p.address;
+  $("phoneMsg").textContent = { waiting: "Waiting for your phone…", timeout: "That took too long. Press Connect my phone to try again.",
+                                failed: "That did not work. Press Connect my phone to try again." }[p.qr_state] || "";
+  $("pinMsg").textContent = p.pin_failed ? "The saved PIN did not unlock the phone. Save the correct one."
+    : p.has_pin ? "PIN saved. The phone unlocks by itself." : "No PIN saved.";
+}
+async function savePin(pin) {
+  const r = await api("/api/phone/pin", { pin });
+  $("pinInput").value = "";
+  renderPhone(r);
+  if (!r.ok) $("pinMsg").textContent = r.error;
+}
+$("pinSave").onclick = () => { if ($("pinInput").value.trim()) savePin($("pinInput").value); };
+$("pinClear").onclick = () => savePin("");
+function phoneStep(n) {
+  [1, 2, 3].forEach((i) => $("phoneStep" + i).hidden = i !== n);
+  $("phoneStart").hidden = n !== 0;
+}
+async function showPairingCode() {
+  await api("/api/phone/qr-start", {});
+  $("qrPhone").src = base + "/phone-qr.svg?t=" + Date.now();
+  phoneStep(3);
+}
+$("phoneStart").onclick = async () => {
+  // A phone that was set up before only needs the last step.
+  const s = await api("/api/settings");
+  if (s.phone.paired_before) {
+    $("phoneStep3Text").innerHTML = "On your phone, open <b>Wireless debugging</b>, tap <b>Pair device with QR code</b> and scan this:";
+    showPairingCode();
+  } else phoneStep(1);
+};
+$("phoneNext1").onclick = () => phoneStep(2);
+$("phoneNext2").onclick = showPairingCode;
+$("discBtn").onclick = async () => renderPhone(await api("/api/phone/disconnect", {}));
+async function manualPhone(path, body) {
+  $("manualMsg").textContent = "Working…";
+  const r = await api(path, body);
+  $("manualMsg").textContent = r.ok ? r.message : r.error;
+}
+$("pairBtn").onclick = () => manualPhone("/api/phone/pair", { address: $("pairAddr").value, code: $("pairCode").value });
+$("connBtn").onclick = () => manualPhone("/api/phone/connect", { address: $("connAddr").value });
+$("installBtn").onclick = async () => {
+  $("installMsg").textContent = "Installing…";
+  const r = await api("/api/install", {});
+  $("installMsg").textContent = r.ok ? "Installed. PC Agent is restarting." : r.error;
+};
+
+$("settingsBtn").onclick = async () => {
+  await loadSettings();
+  $("keyMsg").textContent = "";
+  $("settings").showModal();
+  refreshLinks();
+};
+
+// Start: the first-run screen only appears when something is missing.
+(async () => {
+  const s = await api("/api/settings");
+  if (!s.providers.some((p) => p.has_key)) {
+    if (!onThisPC) wizardStep("wzPhoneWait");
+    else if (s.can_install) wizardStep("wzWelcome");
+    else showKeyStep();
+  }
+  poll();
+})();
+</script>
+</body>
+</html>

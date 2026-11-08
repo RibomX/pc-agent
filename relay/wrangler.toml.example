@@ -1,0 +1,10 @@
+name = "pc-agent-relay"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+# Your Cloudflare account id (shown in the dashboard URL).
+account_id = "YOUR_ACCOUNT_ID"
+
+# Filled in after `npx wrangler kv namespace create DEVICES`.
+[[kv_namespaces]]
+binding = "DEVICES"
+id = "YOUR_KV_NAMESPACE_ID"
