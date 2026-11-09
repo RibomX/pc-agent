@@ -20,6 +20,12 @@ def is_installed() -> bool:
     return is_frozen() and Path(sys.executable).parent.resolve() == INSTALL_DIR.resolve()
 
 
+def is_single_file() -> bool:
+    """Built with --onefile: the program unpacks itself to a temporary folder at every start."""
+    # A folder build keeps its files in _internal next to the exe; a single-file build unpacks to %TEMP%.
+    return is_frozen() and not (Path(sys.executable).parent / "_internal").is_dir()
+
+
 def can_install() -> bool:
     """The portable copy (portable.txt next to the exe) runs where it was unzipped and never installs."""
     return is_frozen() and not is_installed() and not PORTABLE
@@ -41,10 +47,14 @@ def install() -> Path:
     """Copy the running app to INSTALL_DIR and create shortcuts. Returns the installed exe."""
     if not is_frozen():
         raise RuntimeError("Installing works from the packaged PC Agent.exe, not from source.")
-    source = Path(sys.executable).parent
-    exe = INSTALL_DIR / Path(sys.executable).name
+    exe = INSTALL_DIR / "PC Agent.exe"
     if not is_installed():
-        shutil.copytree(source, INSTALL_DIR, dirs_exist_ok=True)
+        if is_single_file():
+            # One self-contained exe: copying that file is the whole install.
+            INSTALL_DIR.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(sys.executable, exe)
+        else:
+            shutil.copytree(Path(sys.executable).parent, INSTALL_DIR, dirs_exist_ok=True)
     _shortcut("Programs", exe)
     _shortcut("Desktop", exe)
     return exe

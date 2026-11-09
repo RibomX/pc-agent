@@ -10,8 +10,11 @@ import sys
 from ctypes import wintypes
 from pathlib import Path
 
-# Portable copy: a portable.txt next to PC Agent.exe keeps everything in its own folder and skips installing.
-PORTABLE = getattr(sys, "frozen", False) and (Path(sys.executable).parent / "portable.txt").exists()
+# Portable copy ("PC Agent Portable.exe", or a portable.txt next to the exe): keeps everything in a
+# "data" folder next to the exe and never installs.
+_EXE = Path(sys.executable)
+PORTABLE = getattr(sys, "frozen", False) and (
+    "portable" in _EXE.stem.lower() or (_EXE.parent / "portable.txt").exists())
 
 if os.environ.get("PC_AGENT_CONFIG_DIR"):
     CONFIG_DIR = Path(os.environ["PC_AGENT_CONFIG_DIR"])  # a separate profile, e.g. for testing the first run

@@ -29,15 +29,17 @@ limit runs out.
 
 ## Getting started
 
-1. Download `PC Agent` from the [Releases](../../releases) page and run `PC Agent.exe`.
+1. Download `PC-Agent.exe` from the [Releases](../../releases) page and run it.
    Windows may warn that the app is unknown (it is not code-signed): **More info → Run anyway**.
 2. Press **Get started** – the app installs itself (Start menu + Desktop shortcut).
 3. Press **Open Google**, then **Create API key** and **Copy**. PC Agent finds the key by itself.
 4. Type what the AI should do.
 
-**Portable version:** download `PC-Agent-Portable.zip`, unzip it anywhere (also a USB stick) and run
-`PC Agent.exe`. Nothing is installed: settings stay in the `data` folder next to the exe (delete the
-folder to remove everything). It is the `portable.txt` file that makes a copy portable.
+**Portable version:** download `PC-Agent-Portable.exe`, put it anywhere (also a USB stick) and run it.
+Nothing is installed: settings stay in a `data` folder created next to it (delete the folder to
+remove everything). The word "Portable" in the file name is what makes it portable.
+
+Both are a single file; the first start takes a few seconds longer while it unpacks itself.
 
 Closing the window hides PC Agent next to the clock. Settings (gear icon):
 
@@ -84,7 +86,7 @@ Requires Windows and Python 3.10+.
 
 ```bat
 start.bat     :: run from source (creates .venv and installs requirements.txt)
-build.bat     :: build release\PC Agent\PC Agent.exe with PyInstaller
+build.bat     :: build release\PC Agent.exe and release\PC Agent Portable.exe (PyInstaller)
 ```
 
 `python run.py --no-window` runs only the server (open the printed address in a browser).
